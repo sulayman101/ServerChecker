@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Status: 77.93.155.98</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <meta http-equiv="refresh" content="60"> <!-- Refresh page every 60s -->
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center font-sans p-4">
+
+    <div class="max-w-md w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden relative">
+        
+        <!-- Header -->
+        <div class="bg-slate-900/50 p-6 border-b border-slate-700 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg">
+                    <i class="fa-solid fa-terminal text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-wide">SSH Monitor</h1>
+                    <div class="text-xs text-slate-400 font-mono">77.93.155.98:22</div>
+                </div>
+            </div>
+            <div id="loader" class="hidden">
+                <i class="fa-solid fa-circle-notch fa-spin text-indigo-400"></i>
+            </div>
+        </div>
+
+        <!-- Main Status Area -->
+        <div class="p-8 text-center">
+            <div id="status-icon-container" class="mb-6 relative inline-block">
+                <!-- Icon injected by JS -->
+                <div class="w-24 h-24 rounded-full bg-slate-700 flex items-center justify-center mx-auto animate-pulse">
+                    <i class="fa-solid fa-magnifying-glass text-3xl text-slate-500"></i>
+                </div>
+            </div>
+            
+            <h2 id="status-text" class="text-3xl font-black uppercase mb-2 text-slate-300">Loading...</h2>
+            <p id="timestamp" class="text-sm text-slate-500 font-mono">Fetching latest report...</p>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="bg-black/20 p-4 text-xs text-center text-slate-600 border-t border-slate-700">
+            Powered by GitHub Actions • Checks every ~10 mins
+        </div>
+    </div>
+
+    <script>
+        const STATUS_FILE = 'status.json';
+
+        async function fetchStatus() {
+            const loader = document.getElementById('loader');
+            const iconContainer = document.getElementById('status-icon-container');
+            const textElement = document.getElementById('status-text');
+            const timeElement = document.getElementById('timestamp');
+
+            loader.classList.remove('hidden');
+
+            try {
+                // Add a timestamp to prevent browser caching old results
+                const response = await fetch(`${STATUS_FILE}?t=${Date.now()}`);
+                
+                if (!response.ok) throw new Error("Status file not found");
+                
+                const data = await response.json();
+                
+                // Update UI based on status
+                if (data.status === 'online') {
+                    iconContainer.innerHTML = `
+                        <div class="w-24 h-24 rounded-full bg-emerald-500/10 border-4 border-emerald-500 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(16,185,129,0.4)]">
+                            <i class="fa-solid fa-check text-4xl text-emerald-400"></i>
+                        </div>
+                    `;
+                    textElement.className = "text-3xl font-black uppercase mb-2 text-emerald-400 drop-shadow-lg";
+                    textElement.innerText = "SYSTEM ONLINE";
+                } else {
+                    iconContainer.innerHTML = `
+                        <div class="w-24 h-24 rounded-full bg-rose-500/10 border-4 border-rose-500 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+                            <i class="fa-solid fa-triangle-exclamation text-4xl text-rose-500"></i>
+                        </div>
+                    `;
+                    textElement.className = "text-3xl font-black uppercase mb-2 text-rose-500 drop-shadow-lg";
+                    textElement.innerText = "SYSTEM OFFLINE";
+                }
+
+                // Format the time
+                const lastCheck = new Date(data.last_check);
+                timeElement.innerText = `Last Verified: ${lastCheck.toLocaleString()}`;
+
+            } catch (error) {
+                console.error(error);
+                iconContainer.innerHTML = `
+                    <div class="w-24 h-24 rounded-full bg-slate-700 flex items-center justify-center mx-auto">
+                        <i class="fa-solid fa-question text-4xl text-slate-400"></i>
+                    </div>
+                `;
+                textElement.innerText = "NO DATA";
+                timeElement.innerText = "Waiting for first GitHub Action run...";
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        fetchStatus();
+    </script>
+</body>
+</html>
+
