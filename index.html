@@ -3,470 +3,415 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor: server.sboapp.so</title>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
+    <title>Server Status | SBO App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #020617; }
+        body { background-color: #0b0f19; font-family: 'Inter', sans-serif; color: #e2e8f0; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         
-        .scanline {
-            width: 100%;
-            height: 100px;
-            z-index: 10;
-            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(16, 185, 129, 0.03) 50%, rgba(0,0,0,0) 100%);
-            opacity: 0.1;
-            position: absolute;
-            bottom: 100%;
-            animation: scanline 8s linear infinite;
-            pointer-events: none;
-        }
-        @keyframes scanline {
-            0% { bottom: 100%; }
-            100% { bottom: -100px; }
+        /* New Card Style based on image_0671da.png */
+        .metric-card { 
+            background-color: #111827; /* Dark slate/gray */
+            border: 1px solid #374151; 
+            border-radius: 0.75rem; /* rounded-xl */
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
         
-        @keyframes pulse-ring {
-            0% { transform: scale(0.33); }
-            80%, 100% { opacity: 0; }
+        /* Hover effect to highlight border like the image implies active state */
+        .metric-card:hover { 
+            border-color: #6366f1; /* Indigo-500 */
+            transform: translateY(-2px); 
         }
-        .pulse-ring {
-            position: absolute;
-            height: 100%;
-            width: 100%;
-            border-radius: 50%;
-            animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-            background-color: currentColor;
+
+        /* Chart container style */
+        .chart-panel {
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.75rem;
         }
+
+        /* Loading Animation */
+        @keyframes scan { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+        .loading-bar { background: linear-gradient(270deg, #6366f1, #0b0f19, #6366f1); background-size: 200% 200%; animation: scan 2s ease infinite; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-200 overflow-x-hidden">
-    <div id="root"></div>
+<body class="min-h-screen flex flex-col items-center py-12 px-4">
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-
-        // --- Icons ---
-        const IconServer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>;
-        const IconActivity = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
-        const IconCpu = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>;
-        const IconWifi = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>;
-        const IconLock = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
-        const IconUnlock = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>;
-        const IconEye = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>;
-        const IconEyeOff = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>;
-        const IconBeaker = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></svg>;
-        const IconRam = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M17 5v2"/><path d="M17 17v2"/><path d="M9 5v2"/><path d="M9 17v2"/></svg>;
-        const IconDisk = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>;
-        const IconHash = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>;
-        const IconCode = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>;
-        const IconAlert = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
-        const IconTerminal = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>;
-
-        const ServerMonitor = () => {
-            // Default to HTTPS to avoid Mixed Content errors in preview
-            const [targetUrl, setTargetUrl] = useState('https://server.sboapp.so/monitor.json');
-            const [isMasked, setIsMasked] = useState(false);
-            const [isDemoMode, setIsDemoMode] = useState(false);
-            const [showDebug, setShowDebug] = useState(false); // Debug view toggle
-            const [isOnline, setIsOnline] = useState(null); 
-            const [latency, setLatency] = useState(0);
-            const [errorMsg, setErrorMsg] = useState("");
-            const [history, setHistory] = useState(new Array(40).fill(0));
-            
-            const [metrics, setMetrics] = useState({ 
-                cpu: 0, 
-                cpuLoad: "",
-                ram: 0, 
-                ramText: "",
-                disk: 0, 
-                diskText: "",
-                uptime: "Unknown",
-                updated: "",
-                ports: [],
-                processes: [],
-                rawData: "" // For debug view
-            });
-            
-            const CHECK_INTERVAL = 3000; 
-            const isSecure = targetUrl.startsWith('https');
-
-            // --- Parsing Logic ---
-            const parsePorts = (rawString) => {
-                if (!rawString) return [];
-                const matches = [...rawString.matchAll(/:(\d+)\s+users/g)];
-                const ports = matches.map(m => m[1]);
-                return [...new Set(ports)].sort((a,b) => a - b);
-            };
-
-            const parseProcesses = (rawString) => {
-                if (!rawString) return [];
-                return rawString.split(';').filter(p => p.trim().length > 0).map(p => {
-                    const parts = p.trim().split(/\s+/);
-                    return {
-                        name: parts[0] || 'unknown',
-                        cpu: parts[1] || '0',
-                        mem: parts[2] || '0',
-                        raw: p
-                    };
-                }).slice(0, 8);
-            };
-
-            const checkServerStatus = async () => {
-                if (isDemoMode) {
-                    setIsOnline(true);
-                    setErrorMsg("");
-                    const fakeLatency = Math.floor(Math.random() * 40) + 120;
-                    setLatency(fakeLatency);
-                    setHistory(prev => [...prev.slice(1), fakeLatency]);
-                    setMetrics({
-                        cpu: 1.5,
-                        cpuLoad: "0.39, 0.18, 0.11",
-                        ram: 46,
-                        ramText: "2.7Gi / 5.8Gi",
-                        disk: 9,
-                        diskText: "8.6G / 103G",
-                        uptime: "up 3 days, 2 hours, 30 minutes",
-                        updated: new Date().toUTCString(),
-                        ports: ["22", "80", "443", "3000", "3306"],
-                        processes: [
-                            {name: "node", cpu: "11.6", mem: "0.0"},
-                            {name: "mysqld", cpu: "7.0", mem: "1.0"},
-                            {name: "nginx", cpu: "2.5", mem: "0.1"}
-                        ],
-                        rawData: JSON.stringify({ "demo": true, "message": "This is simulated data." }, null, 2)
-                    });
-                    return;
-                }
-
-                const startTime = performance.now();
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); 
-
-                    const response = await fetch(targetUrl, { 
-                        cache: 'no-cache',
-                        signal: controller.signal
-                    });
-                    
-                    clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                        throw new Error(`Server returned ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    const endTime = performance.now();
-                    const duration = Math.round(endTime - startTime);
-                    
-                    setIsOnline(true);
-                    setErrorMsg("");
-                    setLatency(duration);
-                    setHistory(prev => [...prev.slice(1), duration]);
-
-                    const diskMatch = (data.disk || "").match(/\((\d+)%\)/); 
-                    const diskPercent = diskMatch ? parseInt(diskMatch[1]) : 0;
-                    
-                    setMetrics({
-                        cpu: parseFloat(data.cpu_usage || 0),
-                        cpuLoad: data.cpu_load || "0.00",
-                        ram: parseInt(data.ram_used_percent || 0),
-                        ramText: data.ram || "",
-                        disk: diskPercent,
-                        diskText: (data.disk || "").split(' (')[0],
-                        uptime: (data.uptime || "").replace('up ', ''),
-                        updated: data.updated || "",
-                        ports: parsePorts(data.ports),
-                        processes: parseProcesses(data.top_processes),
-                        rawData: JSON.stringify(data, null, 2)
-                    });
-                    
-                } catch (error) {
-                    setIsOnline(false);
-                    if (error.name === 'AbortError') {
-                        setErrorMsg("Timeout (Latency > 5000ms)");
-                    } else if (error.message.includes("Failed to fetch")) {
-                        setErrorMsg("Network Error (CORS or Mixed Content)");
-                    } else {
-                        setErrorMsg(error.message);
-                    }
-                    setLatency(0);
-                    setHistory(prev => [...prev.slice(1), 0]);
-                    setMetrics(prev => ({ ...prev, rawData: `Error: ${error.message}\n\nTroubleshooting:\n1. Check if server allows CORS.\n2. Check if using HTTP on HTTPS page.` }));
-                }
-            };
-
-            useEffect(() => {
-                checkServerStatus();
-                const intervalId = setInterval(checkServerStatus, CHECK_INTERVAL);
-                return () => clearInterval(intervalId);
-            }, [targetUrl, isOnline, isDemoMode]);
-
-            const getStatusColor = () => {
-                if (isDemoMode) return 'text-blue-400 border-blue-500/30 bg-blue-500/10 shadow-[0_0_15px_rgba(96,165,250,0.2)]';
-                if (isOnline === null) return 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10';
-                if (isOnline) return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 shadow-[0_0_15px_rgba(52,211,153,0.2)]';
-                return 'text-red-500 border-red-500/30 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.2)]';
-            };
-
-            const getThemeColor = () => {
-                 if (isDemoMode) return 'text-blue-400';
-                 if (!isSecure) return 'text-amber-400';
-                 return 'text-emerald-400';
-            };
-
-            const MetricCard = ({ title, value, subtext, unit, icon: Icon, colorClass, barColorClass }) => (
-                <div className={`bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden group transition-colors hover:border-slate-700`}>
-                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <Icon className="w-20 h-20" />
-                    </div>
-                    <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${barColorClass}`}></span> {title}
-                    </h3>
-                    <div className="flex items-baseline gap-2 mt-2">
-                        <span className={`text-4xl font-mono font-bold tracking-tighter ${value > 0 ? 'text-white' : 'text-slate-600'}`}>
-                            {value}
-                        </span>
-                        <span className="text-slate-500 font-mono text-sm">{unit}</span>
-                    </div>
-                    {subtext && <div className="text-xs text-slate-500 font-mono mt-1 truncate">{subtext}</div>}
-                     <div className="w-full bg-slate-800 h-1 mt-4 rounded-full overflow-hidden">
-                        <div className={`${barColorClass} h-full transition-all duration-500`} style={{ width: `${Math.min(100, value)}%` }}></div>
-                    </div>
+    <!-- Header -->
+    <header class="w-full max-w-6xl mb-8 flex justify-between items-end border-b border-slate-800 pb-6">
+        <div>
+            <div class="flex items-center gap-3 mb-2">
+                <div class="bg-indigo-600 w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid fa-server text-white text-lg"></i>
                 </div>
-            );
+                <h1 class="text-3xl font-extrabold tracking-tight text-white">System Monitor</h1>
+            </div>
+        </div>
+        <div class="text-right hidden sm:block">
+            <div class="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Status</div>
+            <div id="main-status" class="px-3 py-1 rounded-full bg-slate-800 text-slate-400 text-sm font-bold border border-slate-700 inline-flex items-center gap-2">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> CONNECTING
+            </div>
+        </div>
+    </header>
 
-            return (
-                <div className="min-h-screen flex flex-col relative pb-12">
-                    <div className="scanline"></div>
-                    
-                    {/* Header */}
-                    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
-                        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 w-full md:w-auto">
-                                <div className="p-3 bg-slate-900 rounded-xl border border-slate-700 shadow-lg relative">
-                                    <IconServer className={`w-6 h-6 ${getThemeColor()}`} />
-                                    <div className="absolute -top-1 -right-1">
-                                        {isSecure ? (
-                                             <IconLock className={`w-4 h-4 text-slate-900 rounded-full p-0.5 ${isDemoMode ? 'bg-blue-400' : 'bg-emerald-400'}`} />
-                                        ) : (
-                                             <IconUnlock className="w-4 h-4 text-slate-900 bg-amber-400 rounded-full p-0.5" />
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex flex-col">
-                                    <h1 className="font-bold text-slate-100 tracking-wide text-lg leading-tight">SERVER MONITOR</h1>
-                                    <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-1">
-                                        <span className={`transition-all duration-300 ${isMasked ? 'blur-sm' : getThemeColor()} opacity-80`}>
-                                            {isMasked ? 'server.sboapp.so' : targetUrl.replace(/https?:\/\//, "")}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+    <!-- Main Content -->
+    <main class="w-full max-w-6xl space-y-6">
+        
+        <!-- Top Row: Key Metrics Cards -->
+        <!-- Adjusted grid to match the wide/boxy look of the reference image -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="metrics-container">
+            <!-- Loading Skeleton -->
+            <div class="metric-card p-6 rounded-xl col-span-full text-center space-y-4 border-dashed border-slate-700">
+                <div class="h-2 loading-bar rounded-full w-full max-w-md mx-auto mt-2"></div>
+                <p class="text-xs text-slate-500">Establishing secure connection...</p>
+            </div>
+        </div>
 
-                            <div className={`flex items-center gap-3 px-5 py-2 rounded-full border ${getStatusColor()} transition-all duration-300 w-full md:w-auto justify-center`}>
-                                <div className="relative w-3 h-3 flex items-center justify-center">
-                                    {(isOnline || isDemoMode) && <div className={`pulse-ring absolute ${getThemeColor()}`}></div>}
-                                    <div className={`w-2.5 h-2.5 rounded-full z-10 ${isDemoMode ? 'bg-blue-400' : (isOnline === null ? 'bg-yellow-400' : isOnline ? 'bg-emerald-400' : 'bg-red-500')}`}></div>
-                                </div>
-                                <div className="flex flex-col leading-none">
-                                    <span className="font-mono font-bold text-sm tracking-wider">
-                                        {isDemoMode ? "DEMO MODE" : (isOnline === null ? "CONNECTING..." : isOnline ? "SYSTEM ONLINE" : "SYSTEM OFFLINE")}
-                                    </span>
-                                    {errorMsg && !isOnline && !isDemoMode && (
-                                        <span className="text-[10px] text-red-400 mt-1 uppercase tracking-tight">{errorMsg}</span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full space-y-6">
-                        
-                        {/* URL Control & Tools */}
-                        <div className="bg-slate-900/40 border border-slate-800 p-1 rounded-xl flex items-center shadow-lg relative group">
-                             <div className={`pl-4 pr-3 ${getThemeColor()}`}>
-                                {isSecure ? <IconLock className="w-4 h-4" /> : <IconUnlock className="w-4 h-4" />}
-                             </div>
-                             <input 
-                                type="text" 
-                                value={isMasked ? '••••••••••••••••••••••••' : targetUrl}
-                                readOnly={isMasked || isDemoMode}
-                                onChange={(e) => setTargetUrl(e.target.value)}
-                                className={`bg-transparent border-none text-slate-300 px-0 py-3 font-mono text-sm w-full focus:ring-0 focus:outline-none placeholder-slate-600 ${isMasked ? 'pointer-events-none' : ''}`}
-                            />
-                            
-                            {/* Debug Toggle */}
-                            <button 
-                                onClick={() => setShowDebug(!showDebug)} 
-                                className={`mr-1 p-2 rounded-lg transition-colors ${showDebug ? 'text-purple-400 bg-purple-400/10' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
-                                title="Show Raw JSON Data"
-                            >
-                                <IconCode className="w-4 h-4" />
-                            </button>
-
-                             {/* Demo Toggle */}
-                             <button 
-                                onClick={() => setIsDemoMode(!isDemoMode)} 
-                                className={`mr-1 p-2 rounded-lg transition-colors ${isDemoMode ? 'text-blue-400 bg-blue-400/10' : 'text-slate-500 hover:text-white hover:bg-slate-800'}`}
-                                title={isDemoMode ? "Turn Off Demo" : "Simulate Data (Demo Mode)"}
-                            >
-                                <IconBeaker className="w-4 h-4" />
-                            </button>
-
-                            {/* Mask Toggle */}
-                            <button 
-                                onClick={() => setIsMasked(!isMasked)} 
-                                className="mr-2 p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                                title={isMasked ? "Show URL" : "Hide URL"}
-                            >
-                                {isMasked ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
-                            </button>
-                        </div>
-
-                        {/* Error Alert Box */}
-                        {!isOnline && errorMsg && !isDemoMode && (
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3 animate-pulse">
-                                <IconAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                                <div>
-                                    <h3 className="text-red-400 text-sm font-bold">Connection Failed</h3>
-                                    <p className="text-red-400/70 text-xs mt-1">
-                                        Cannot reach <strong>{targetUrl}</strong>.
-                                        <br/>
-                                        &bull; If using <strong>HTTP</strong>, switch to <strong>HTTPS</strong> to fix "Mixed Content".
-                                        <br/>
-                                        &bull; Check CORS headers (Access-Control-Allow-Origin: *).
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Debug View (Shows Raw JSON) */}
-                        {showDebug && (
-                            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs overflow-x-auto relative">
-                                <h3 className="text-purple-400 font-bold mb-2 flex items-center gap-2">
-                                    <IconTerminal className="w-3 h-3" /> Raw JSON Response
-                                </h3>
-                                <pre className="text-slate-400 whitespace-pre-wrap break-all">
-                                    {metrics.rawData || "Waiting for data..."}
-                                </pre>
-                            </div>
-                        )}
-
-                        {/* Top Metrics Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className={`bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden group transition-colors ${isDemoMode ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
-                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><IconWifi className="w-20 h-20" /></div>
-                                <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isDemoMode ? 'bg-blue-500' : isSecure ? 'bg-emerald-500' : 'bg-amber-500'}`}></span> Latency
-                                </h3>
-                                <div className="flex items-baseline gap-2 mt-2">
-                                    <span className={`text-4xl font-mono font-bold tracking-tighter ${latency > 0 ? 'text-white' : 'text-slate-600'}`}>{latency}</span>
-                                    <span className="text-slate-500 font-mono text-sm">ms</span>
-                                </div>
-                                <div className="w-full bg-slate-800 h-1 mt-4 rounded-full overflow-hidden">
-                                    <div className={`${isDemoMode ? 'bg-blue-500' : isSecure ? 'bg-emerald-500' : 'bg-amber-500'} h-full transition-all duration-300`} style={{ width: `${Math.min(100, latency / 2)}%` }}></div>
-                                </div>
-                            </div>
-                            
-                            <MetricCard title="CPU Usage" value={metrics.cpu} unit="%" subtext={`Load: ${metrics.cpuLoad}`} icon={IconCpu} barColorClass="bg-indigo-500" />
-                            <MetricCard title="RAM Usage" value={metrics.ram} unit="%" subtext={metrics.ramText} icon={IconRam} barColorClass="bg-purple-500" />
-                            <MetricCard title="Disk Usage" value={metrics.disk} unit="%" subtext={metrics.diskText} icon={IconDisk} barColorClass="bg-cyan-500" />
-                        </div>
-
-                        {/* Bottom Row */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            
-                            {/* Active Ports List */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                                        <IconHash className="w-4 h-4" /> Active Ports
-                                    </h3>
-                                    <span className="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-md border border-slate-700 font-mono">
-                                        {metrics.ports.length} Open
-                                    </span>
-                                </div>
-                                <div className="flex-1 space-y-2 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
-                                    {metrics.ports.length === 0 ? (
-                                        <div className="text-slate-600 text-sm italic py-4 text-center">No ports detected</div>
-                                    ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                            {metrics.ports.map((port, i) => (
-                                                <div key={i} className="bg-slate-950 border border-slate-800 text-slate-300 px-3 py-2 rounded-lg font-mono text-sm flex items-center gap-2 shadow-sm">
-                                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                                    {port}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-slate-800 text-xs text-slate-500 font-mono">
-                                    <div className="flex justify-between"><span>Uptime</span><span className="text-slate-300">{metrics.uptime}</span></div>
-                                    <div className="flex justify-between mt-1"><span>Updated</span><span className="text-slate-300">{metrics.updated.split('GMT')[0] || metrics.updated}</span></div>
-                                </div>
-                            </div>
-
-                            {/* Top Processes */}
-                            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                                        <IconCode className="w-4 h-4" /> Top Processes
-                                    </h3>
-                                    {isDemoMode && <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">DEMO</span>}
-                                </div>
-                                
-                                <div className="w-full overflow-hidden">
-                                    <table className="w-full text-left text-sm font-mono text-slate-400">
-                                        <thead className="bg-slate-800/50 text-slate-500 text-xs uppercase">
-                                            <tr>
-                                                <th className="px-4 py-2 rounded-l-lg">Process</th>
-                                                <th className="px-4 py-2">CPU %</th>
-                                                <th className="px-4 py-2 rounded-r-lg">MEM %</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {metrics.processes.length === 0 ? (
-                                                 <tr><td colSpan="3" className="px-4 py-8 text-center text-slate-600 italic">No process data available</td></tr>
-                                            ) : (
-                                                metrics.processes.map((proc, i) => (
-                                                    <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                                                        <td className="px-4 py-3 font-medium text-slate-300">{proc.name}</td>
-                                                        <td className="px-4 py-3 text-emerald-400">{proc.cpu}%</td>
-                                                        <td className="px-4 py-3 text-purple-400">{proc.mem}%</td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                    </main>
-                    
-                    <footer className="border-t border-slate-800 bg-slate-950 py-6 text-center text-slate-600 text-xs">
-                         <p>Server Monitoring Node • {isSecure ? "Secure (HTTPS)" : "Unsecured (HTTP)"}</p>
-                    </footer>
+        <!-- Middle Row: Charts (CPU & RAM Only) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- CPU Chart -->
+            <div class="chart-panel p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">CPU History</h3>
+                    <i class="fa-solid fa-microchip text-slate-600"></i>
                 </div>
-            );
+                <div class="h-64 w-full">
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Memory Chart -->
+            <div class="chart-panel p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Memory History</h3>
+                    <i class="fa-solid fa-memory text-slate-600"></i>
+                </div>
+                <div class="h-64 w-full">
+                    <canvas id="ramChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-12 text-center text-slate-600 text-xs">
+        <p>Live Monitoring Dashboard • Auto-refreshes every 5s</p>
+    </footer>
+
+    <script>
+        const API_URL = "https://monitoring.sboapp.so/getinfo";
+        const REFRESH_RATE = 5000; // 5 seconds
+
+        // Icons mapping for common JSON keys
+        const ICONS = {
+            cpu: 'fa-microchip',
+            ram: 'fa-memory',
+            memory: 'fa-memory',
+            disk: 'fa-hard-drive',
+            storage: 'fa-hard-drive',
+            network: 'fa-network-wired',
+            uptime: 'fa-clock',
+            standing: 'fa-stopwatch',
+            time: 'fa-clock',
+            load: 'fa-tachometer-alt',
+            os: 'fa-linux',
+            ip: 'fa-globe',
+            version: 'fa-code-branch',
+            hostname: 'fa-server'
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ServerMonitor />);
+        // --- Chart Initialization ---
+        let cpuChartInstance = null;
+        let ramChartInstance = null;
+        const MAX_DATA_POINTS = 20;
+
+        function initCharts() {
+            const commonOptions = getChartOptions();
+
+            // CPU Chart
+            const ctxCpu = document.getElementById('cpuChart').getContext('2d');
+            cpuChartInstance = new Chart(ctxCpu, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: [],
+                        borderColor: '#6366f1', // Indigo
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0
+                    }]
+                },
+                options: commonOptions
+            });
+
+            // RAM Chart
+            const ctxRam = document.getElementById('ramChart').getContext('2d');
+            ramChartInstance = new Chart(ctxRam, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Memory Usage',
+                        data: [],
+                        borderColor: '#10b981', // Emerald
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 0
+                    }]
+                },
+                options: commonOptions
+            });
+        }
+
+        function getChartOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#e2e8f0',
+                        borderColor: 'rgba(55, 65, 81, 1)',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    x: {
+                        display: false 
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(55, 65, 81, 0.3)' // Darker grid lines
+                        },
+                        ticks: {
+                            color: '#64748b'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 0 
+                }
+            };
+        }
+
+        // Helper to format seconds into Day:Hour:Min
+        function formatUptime(seconds) {
+            if (isNaN(seconds)) return seconds; 
+            const d = Math.floor(seconds / (3600*24));
+            const h = Math.floor((seconds % (3600*24)) / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            
+            // Format: 1:01:30 (Day:Hour:Min)
+            return `${d}:${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        function updateCharts(data) {
+            const now = new Date().toLocaleTimeString();
+
+            let cpuVal = null;
+            let ramVal = null;
+
+            // SMART SCAN: Loop through ALL data keys
+            Object.keys(data).forEach(key => {
+                const val = data[key];
+                const keyLower = key.toLowerCase();
+                
+                if (typeof val === 'object' && val !== null) return;
+
+                let numVal = parseFloat(val);
+                if (isNaN(numVal)) return;
+
+                // CPU
+                if (cpuVal === null && (keyLower.includes('cpu') || keyLower.includes('load'))) {
+                    cpuVal = numVal;
+                }
+
+                // RAM
+                if (ramVal === null && (keyLower.includes('ram') || keyLower.includes('memory') || keyLower.includes('mem'))) {
+                    ramVal = numVal;
+                }
+            });
+            
+            if (cpuVal !== null) addData(cpuChartInstance, now, cpuVal);
+            if (ramVal !== null) addData(ramChartInstance, now, ramVal);
+        }
+
+        function addData(chart, label, data) {
+            chart.data.labels.push(label);
+            chart.data.datasets.forEach((dataset) => {
+                dataset.data.push(data);
+            });
+
+            if (chart.data.labels.length > MAX_DATA_POINTS) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach((dataset) => {
+                    dataset.data.shift();
+                });
+            }
+            chart.update();
+        }
+
+        // --- Main Logic ---
+
+        async function updateDashboard() {
+            try {
+                let response;
+                let errorLog = [];
+
+                // 1. Direct
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000); 
+                    response = await fetch(API_URL, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!response.ok) throw new Error(`Direct Error: ${response.status}`);
+                } catch (e) {
+                    errorLog.push("Direct: " + e.message);
+                    response = null;
+                }
+
+                // 2. Proxy (corsproxy.io)
+                if (!response) {
+                    try {
+                        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(API_URL)}`;
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        response = await fetch(proxyUrl, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        if (!response.ok) throw new Error(`Proxy1 Error: ${response.status}`);
+                    } catch (e) {
+                        errorLog.push("Proxy1: " + e.message);
+                        response = null;
+                    }
+                }
+
+                // 3. Proxy (allorigins)
+                if (!response) {
+                    try {
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(API_URL)}`;
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        response = await fetch(proxyUrl, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        if (!response.ok) throw new Error(`Proxy2 Error: ${response.status}`);
+                    } catch (e) {
+                        errorLog.push("Proxy2: " + e.message);
+                        response = null;
+                    }
+                }
+
+                if (!response) {
+                    throw new Error("Connection failed.");
+                }
+                
+                const data = await response.json();
+                
+                setOnline(true);
+                renderMetrics(data);
+                updateCharts(data); 
+                
+            } catch (error) {
+                console.error("Dashboard Update Error:", error);
+                setOnline(false);
+            }
+        }
+
+        function setOnline(isOnline) {
+            const statusBadge = document.getElementById('main-status');
+            
+            if (isOnline) {
+                statusBadge.className = "px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500 text-green-400 text-sm font-bold inline-flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)]";
+                statusBadge.innerHTML = `<i class="fa-solid fa-circle-check text-green-500 text-lg"></i> ONLINE`;
+            } else {
+                statusBadge.className = "px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500 text-red-400 text-sm font-bold inline-flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)]";
+                statusBadge.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-500 text-lg"></i> OFFLINE`;
+            }
+        }
+
+        function renderMetrics(data) {
+            const container = document.getElementById('metrics-container');
+            container.innerHTML = ''; 
+
+            Object.keys(data).forEach(key => {
+                const value = data[key];
+                const keyLower = key.toLowerCase();
+                
+                let displayValue = value;
+                let subtext = "";
+                
+                // --- SPECIAL HANDLING FOR UPTIME OBJECT ---
+                if (keyLower === 'uptime' && typeof value === 'object' && value !== null) {
+                    if (value.formatted) {
+                        displayValue = value.formatted;
+                    } else {
+                        // Fallback construction if formatted is missing
+                        displayValue = `${value.days || 0}d ${value.hours || 0}h ${value.minutes || 0}m`;
+                    }
+                    subtext = "Duration";
+                }
+                // Skip other complex objects
+                else if (typeof value === 'object' && value !== null) {
+                    return;
+                }
+                // Handle standard scalar values
+                else {
+                    if (keyLower.includes('uptime') || keyLower.includes('standing') || keyLower.includes('duration')) {
+                        subtext = "Days : Hours : Mins";
+                        if (!isNaN(value)) displayValue = formatUptime(value);
+                    }
+                    
+                    if ((keyLower.includes('cpu') || keyLower.includes('load')) && !String(value).includes('%')) {
+                        displayValue += "%";
+                    }
+                }
+
+                let iconClass = 'fa-chart-simple'; 
+                Object.keys(ICONS).forEach(term => {
+                    if (keyLower.includes(term)) iconClass = ICONS[term];
+                });
+
+                const card = document.createElement('div');
+                card.className = "metric-card p-5 relative overflow-hidden group";
+                
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="text-slate-400 text-xs font-bold uppercase tracking-wider">${key.replace(/_/g, ' ')}</span>
+                        <i class="fa-solid ${iconClass} text-indigo-400 opacity-60"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-white tracking-tight truncate" title="${typeof displayValue === 'string' ? displayValue : value}">
+                        ${displayValue}
+                    </div>
+                    ${subtext ? `<div class="text-xs text-slate-500 mt-2 font-mono">${subtext}</div>` : ''}
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        initCharts();
+        updateDashboard();
+        setInterval(updateDashboard, REFRESH_RATE);
+
     </script>
 </body>
 </html>
